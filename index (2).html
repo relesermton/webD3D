@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>webD3D Playground</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; display: grid; grid-template-columns: 280px 1fr; height: 100vh; background: #090b10; }
+    aside { padding: 18px; border-right: 1px solid #29303d; background: #11151d; overflow: auto; }
+    h1 { margin: 0 0 16px; font-size: 20px; }
+    label { display: grid; gap: 6px; margin: 12px 0; font-size: 13px; }
+    input[type="range"] { width: 100%; }
+    input[type="color"] { width: 100%; height: 38px; }
+    button, select { width: 100%; padding: 9px; border: 1px solid #3a4657; border-radius: 6px; background: #1b222d; color: white; }
+    button { margin-top: 8px; cursor: pointer; }
+    main { min-width: 0; position: relative; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .status { position: absolute; left: 12px; top: 12px; padding: 6px 8px; border-radius: 5px; background: #000b; font: 12px monospace; }
+  </style>
+</head>
+<body>
+  <aside>
+    <h1>webD3D Playground</h1>
+    <label>Primitive
+      <select id="primitive"><option value="cube">Cube</option><option value="sphere">Sphere</option><option value="plane">Plane</option></select>
+    </label>
+    <label>Color <input id="color" type="color" value="#4fa3ff"></label>
+    <label>Rotation X <input id="rx" type="range" min="-3.14" max="3.14" step="0.01" value="0.35"></label>
+    <label>Rotation Y <input id="ry" type="range" min="-3.14" max="3.14" step="0.01" value="0.55"></label>
+    <label>Scale <input id="scale" type="range" min="0.2" max="3" step="0.05" value="1"></label>
+    <label><span><input id="wireframe" type="checkbox"> Wireframe</span></label>
+    <label><span><input id="culling" type="checkbox" checked> Back-face culling</span></label>
+    <button id="reset">Reset view</button>
+  </aside>
+  <main><canvas id="canvas"></canvas><div class="status" id="status">Canvas 2D · no WebGPU</div></main>
+
+  <script src="../WebD3D.js"></script>
+  <script>
+    const canvas = document.getElementById("canvas");
+    const renderer = new WebD3D.Renderer(canvas, { backfaceCulling: true });
+    const scene = new WebD3D.Scene();
+    scene.background = "#10131a";
+    renderer.camera.position.z = 0;
+
+    let mesh = addPrimitive("cube");
+    mesh.position.z = 5;
+
+    function hexToRgb(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      return new WebD3D.Color((n >> 16) & 255, (n >> 8) & 255, n & 255, 1);
+    }
+
+    function addPrimitive(type) {
+      if (mesh) scene.remove(mesh);
+      let geometry;
+      if (type === "sphere") geometry = WebD3D.Primitives.createSphere(1, 20, 14);
+      else if (type === "plane") geometry = WebD3D.Primitives.createPlane(2.5, 2.5, 8, 8);
+      else geometry = WebD3D.Primitives.createCube(1.8);
+      mesh = new WebD3D.Mesh(geometry, new WebD3D.Material({ color: hexToRgb(document.getElementById("color").value) }));
+      mesh.position.z = type === "plane" ? 5 : 5;
+      scene.add(mesh);
+      return mesh;
+    }
+
+    document.getElementById("primitive").addEventListener("change", e => addPrimitive(e.target.value));
+    document.getElementById("color").addEventListener("input", e => mesh.material.color = hexToRgb(e.target.value));
+    document.getElementById("wireframe").addEventListener("change", e => mesh.material.wireframe = e.target.checked);
+    document.getElementById("culling").addEventListener("change", e => renderer.backfaceCulling = e.target.checked);
+
+    document.getElementById("reset").addEventListener("click", () => {
+      document.getElementById("rx").value = 0.35;
+      document.getElementById("ry").value = 0.55;
+      document.getElementById("scale").value = 1;
+    });
+
+    let dragging = false, lastX = 0, lastY = 0;
+    canvas.addEventListener("pointerdown", e => { dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.setPointerCapture(e.pointerId); });
+    canvas.addEventListener("pointermove", e => {
+      if (!dragging) return;
+      mesh.rotation.y += (e.clientX - lastX) * 0.008;
+      mesh.rotation.x += (e.clientY - lastY) * 0.008;
+      lastX = e.clientX; lastY = e.clientY;
+    });
+    canvas.addEventListener("pointerup", () => dragging = false);
+
+    function frame() {
+      mesh.rotation.x = Number(document.getElementById("rx").value);
+      mesh.rotation.y = Number(document.getElementById("ry").value);
+      const s = Number(document.getElementById("scale").value);
+      mesh.scale.set(s, s, s);
+      renderer.render(scene);
+      requestAnimationFrame(frame);
+    }
+
+    frame();
+  </script>
+</body>
+</html>
